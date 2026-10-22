@@ -22,6 +22,15 @@ const int port = 80;
 
 WebServer server(port);
 
+struct LEDState {
+  uint8_t r;
+  uint8_t g;
+  uint8_t b;
+  uint8_t brightness;
+};
+
+LEDState ledStates[NUM_PIXELS] = {};
+
 void setup() {
     Serial.begin(115200);
 
@@ -30,10 +39,22 @@ void setup() {
     digitalWrite(TRIG_PIN, LOW);
     strip.begin();
     strip.clear();
-    strip.setPixelColor(1, strip.Color(155, 0, 0));
-    strip.setPixelColor(3, strip.Color(0, 155, 0));
-    strip.setPixelColor(5, strip.Color(0, 0, 155));
-    strip.setBrightness(120);
+
+    ledStates[1] = {155, 0, 0, 120};
+    ledStates[3] = {0, 155, 0, 120};
+    ledStates[5] = {0, 0, 155, 120};
+
+    for (int i = 0; i < NUM_PIXELS; i++) {
+        LEDState s = ledStates[i];
+
+        strip.setPixelColor(
+            i,
+            (s.r * s.brightness) / 255,
+            (s.g * s.brightness) / 255,
+            (s.b * s.brightness) / 255
+        );
+    }
+
     strip.show();
 
     WiFi.softAP(ssid, password, ssid_hidden, max_connection);
@@ -46,6 +67,12 @@ void setup() {
     server.on("/", HTTP_GET, handleRoot);
     server.on("/api/distance", HTTP_GET, handleDistance);
     server.on("/api/leds", HTTP_GET, handleLEDstatus);
+
+    for (int i = 0; i < NUM_PIXELS; i++) {
+    String path = "/api/leds/" + String(i);
+    server.on(path.c_str(), HTTP_PUT, handleLEDupdate);
+    }
+
     server.onNotFound(handleNotFound);
     server.on("/api/leds", HTTP_OPTIONS, handleOptions);
 
@@ -68,30 +95,21 @@ void handleDistance() {
     server.send(200, "application/json", distance_cm);
 }
 
-struct LEDState {
-  uint8_t r;
-  uint8_t g;
-  uint8_t b;
-  uint8_t brightness;
-};
-
-LEDState ledStates[NUM_PIXELS] = {};
-
 void handleLEDstatus() {
     Serial.println("LED status request received");
     JsonDocument doc;
     JsonArray leds = doc["leds"].to<JsonArray>();
 
     for (int i = 0; i < NUM_PIXELS; i++) {
-        uint32_t color = strip.getPixelColor(i);
         JsonObject led = leds.add<JsonObject>();
 
         led["id"] = i;
-        led["r"] = (color >> 16) & 0xFF;
-        led["g"] = (color >> 8) & 0xFF;
-        led["b"] = color & 0xFF;
-        led["brightness"] = strip.getBrightness();
+        led["r"] = ledStates[i].r;
+        led["g"] = ledStates[i].g;
+        led["b"] = ledStates[i].b;
+        led["brightness"] = ledStates[i].brightness;
     }
+    
     String output;
     serializeJson(doc, output);
 
@@ -99,6 +117,89 @@ void handleLEDstatus() {
     server.send(200, "application/json", output);
 }
 
+void handleLEDupdate() {
+    String path = server.uri();
+    String idStr = path.substring(10);
+
+    if (idStr.length() != 1 ||
+        idStr[0] < '0' || idStr[0] > '7') {
+        server.send(404, "application/json",
+                    "{\"error\":\"Invalid LED ID\"}");
+        return;
+    }
+
+    int id = idStr.toInt();
+
+    JsonDocument doc;
+
+    DeserializationError error =
+        deserializeJson(doc, server.arg("plain"));
+
+    if (error || !doc.is<JsonObject>()) {
+        server.send(400, "application/json",
+                    "{\"error\":\"Invalid JSON object\"}");
+        return;
+    }
+
+    // Validate RGB and brightness
+    if (!doc["r"].is<int>() ||
+        !doc["g"].is<int>() ||
+        !doc["b"].is<int>() ||
+        !doc["brightness"].is<int>()) {
+
+        server.send(400, "application/json",
+                    "{\"error\":\"Missing or invalid fields\"}");
+        return;
+    }
+
+    int r = doc["r"].as<int>();
+    int g = doc["g"].as<int>();
+    int b = doc["b"].as<int>();
+    int brightness = doc["brightness"].as<int>();
+
+    // Validate ranges
+    if (r < 0 || r > 255 ||
+        g < 0 || g > 255 ||
+        b < 0 || b > 255 ||
+        brightness < 0 || brightness > 255) {
+
+        server.send(400, "application/json",
+                    "{\"error\":\"Values must be 0-255\"}");
+        return;
+    }
+
+    // Update only the selected logical state
+    ledStates[id] = {
+        (uint8_t)r,
+        (uint8_t)g,
+        (uint8_t)b,
+        (uint8_t)brightness
+    };
+
+    // Scale RGB using per-pixel brightness
+    uint8_t scaledR = (r * brightness) / 255;
+    uint8_t scaledG = (g * brightness) / 255;
+    uint8_t scaledB = (b * brightness) / 255;
+
+    // Update only the selected pixel
+    strip.setPixelColor(id, scaledR, scaledG, scaledB);
+    strip.show();
+
+    // Return the full logical state
+    JsonDocument response;
+
+    response["id"] = id;
+    response["r"] = ledStates[id].r;
+    response["g"] = ledStates[id].g;
+    response["b"] = ledStates[id].b;
+    response["brightness"] = ledStates[id].brightness;
+
+    String output;
+    serializeJson(response, output);
+
+    server.sendHeader("Access-Control-Allow-Origin", "*");
+    server.send(200, "application/json", output);
+}
 
 void handleOptions() {
     server.sendHeader("Access-Control-Allow-Origin", "*");
