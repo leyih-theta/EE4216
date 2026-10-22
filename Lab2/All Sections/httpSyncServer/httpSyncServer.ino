@@ -13,8 +13,8 @@
 NewPing sonar(TRIG_PIN, ECHO_PIN, MAX_DISTANCE);
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_PIXELS, LED_PIN, NEO_GRB + NEO_KHZ800);
 
-const char* ssid = "A0288423X";
-const char* password = "hophopsenator";
+const char* ssid = "ap_name";
+const char* password = "password123";
 int max_connection = 2;
 int ssid_hidden = 0;
  
@@ -30,7 +30,10 @@ void setup() {
     digitalWrite(TRIG_PIN, LOW);
     strip.begin();
     strip.clear();
+    strip.setPixelColor(1, strip.Color(155, 0, 0));
     strip.setPixelColor(3, strip.Color(0, 155, 0));
+    strip.setPixelColor(5, strip.Color(0, 0, 155));
+    strip.setBrightness(120);
     strip.show();
 
     WiFi.softAP(ssid, password, ssid_hidden, max_connection);
@@ -43,7 +46,6 @@ void setup() {
     server.on("/", HTTP_GET, handleRoot);
     server.on("/api/distance", HTTP_GET, handleDistance);
     server.on("/api/leds", HTTP_GET, handleLEDstatus);
-    server.on("/api/leds", HTTP_PUT, handleLEDupdate);
     server.onNotFound(handleNotFound);
     server.on("/api/leds", HTTP_OPTIONS, handleOptions);
 
@@ -76,6 +78,7 @@ struct LEDState {
 LEDState ledStates[NUM_PIXELS] = {};
 
 void handleLEDstatus() {
+    Serial.println("LED status request received");
     JsonDocument doc;
     JsonArray leds = doc["leds"].to<JsonArray>();
 
@@ -87,9 +90,8 @@ void handleLEDstatus() {
         led["r"] = (color >> 16) & 0xFF;
         led["g"] = (color >> 8) & 0xFF;
         led["b"] = color & 0xFF;
-        led["brightness"] = ledStates[i].brightness;
+        led["brightness"] = strip.getBrightness();
     }
-
     String output;
     serializeJson(doc, output);
 
