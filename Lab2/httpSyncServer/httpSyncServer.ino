@@ -74,7 +74,7 @@ void setup() {
     }
 
     server.onNotFound(handleNotFound);
-    server.on("/api/leds", HTTP_OPTIONS, handleOptions);
+    // server.on("/api/leds", HTTP_OPTIONS, handleOptions);
 
 }
 
@@ -164,7 +164,7 @@ void handleLEDupdate() {
         brightness < 0 || brightness > 255) {
 
         server.send(400, "application/json",
-                    "{\"error\":\"Values must be 0-255\"}");
+                    "{\"error\":\"RGB values and brightness must be 0-255\"}");
         return;
     }
 
@@ -197,17 +197,17 @@ void handleLEDupdate() {
     String output;
     serializeJson(response, output);
 
-    server.sendHeader("Access-Control-Allow-Origin", "*");
+    // server.sendHeader("Access-Control-Allow-Origin", "*");
     server.send(200, "application/json", output);
 }
 
-void handleOptions() {
-    server.sendHeader("Access-Control-Allow-Origin", "*");
-    server.sendHeader("Access-Control-Allow-Methods", "GET, PUT, OPTIONS");
-    server.sendHeader("Access-Control-Allow-Headers", "Content-Type");
+// void handleOptions() {
+//     server.sendHeader("Access-Control-Allow-Origin", "*");
+//     server.sendHeader("Access-Control-Allow-Methods", "GET, PUT, OPTIONS");
+//     server.sendHeader("Access-Control-Allow-Headers", "Content-Type");
 
-    server.send(204);
-}
+//     server.send(204);
+// }
 
 void handleNotFound() {
   server.send(404, "text/plain", "404: Not Found");
