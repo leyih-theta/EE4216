@@ -13,7 +13,7 @@
 NewPing sonar(TRIG_PIN, ECHO_PIN, MAX_DISTANCE);
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_PIXELS, LED_PIN, NEO_GRB + NEO_KHZ800);
 
-const char* ssid = "ap_name";
+const char* ssid = "A0288423X";
 const char* password = "password123";
 int max_connection = 2;
 int ssid_hidden = 0;
@@ -74,7 +74,6 @@ void setup() {
     }
 
     server.onNotFound(handleNotFound);
-    // server.on("/api/leds", HTTP_OPTIONS, handleOptions);
 
 }
 
@@ -197,17 +196,8 @@ void handleLEDupdate() {
     String output;
     serializeJson(response, output);
 
-    // server.sendHeader("Access-Control-Allow-Origin", "*");
     server.send(200, "application/json", output);
 }
-
-// void handleOptions() {
-//     server.sendHeader("Access-Control-Allow-Origin", "*");
-//     server.sendHeader("Access-Control-Allow-Methods", "GET, PUT, OPTIONS");
-//     server.sendHeader("Access-Control-Allow-Headers", "Content-Type");
-
-//     server.send(204);
-// }
 
 void handleNotFound() {
   server.send(404, "text/plain", "404: Not Found");
